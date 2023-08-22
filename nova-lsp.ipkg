@@ -1,0 +1,11 @@
+package nova-lsp
+version = 0.1.0
+
+opts = "-Wno-shadowing"
+
+depends = contrib, nova, lsp-lib
+
+sourcedir = "src"
+
+main = Server.Main
+executable = nova-lsp
