@@ -67,6 +67,8 @@ record LSPConfiguration where
   omega : Omega
   ||| Unification state
   nextOmegaIdx : Nat
+  ||| Named holes
+  namedHoles : OrdTree (String, List (Data.Location.Range, OmegaName)) ByFst
   semanticTokenOffsetEncoding : SemanticTokenOffsetEncoding
   workspaceFolder : String
 
@@ -91,6 +93,7 @@ defaultConfig workspaceFolder =
     , sigma             = [<]
     , omega             = empty
     , nextOmegaIdx      = 0
+    , namedHoles        = empty
     , semanticTokenOffsetEncoding = UTF16
     , workspaceFolder = workspaceFolder
     }

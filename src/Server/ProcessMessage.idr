@@ -87,15 +87,21 @@ loadURI conf uri version = Prelude.do
        pure $ Left msg
 
   let modules = takeUpTo (/= openModule) modules
-  Right (sig, omega, ops, nextOmegaIdx, toks) <- checkModules [<] empty [<] 0 empty workspace modules
-    | Left msg => do
-       logE Server msg
-       pure $ Left msg
+  Right (sig, omega, ops, nextOmegaIdx, namedHoles, toks) <- checkModules [<] empty [<] 0 empty empty workspace modules
+    | Left (filename, r, msg) => do
+       logE Server (renderDocNoAnn msg)
+       case filename == fpath of
+         True => sendDiagnostics caps uri version [(r, msg)]
+         False => sendDiagnostics caps uri version [(Nothing, pretty "In file \{filename}" <+> hardline <+> msg)]
+       pure $ Left (renderDocNoAnn msg)
   logI Channel "File type checked successfully"
   update LSPConf {quickfixes := [],
                   semanticTokens := toks,
                   hasError := False,
-                  nextOmegaIdx := nextOmegaIdx}
+                  nextOmegaIdx := nextOmegaIdx,
+                  namedHoles := namedHoles,
+                  sigma := sig,
+                  omega := omega}
   sendDiagnostics caps uri version []
   pure $ Right ()
 
@@ -160,22 +166,16 @@ whenNotShutdownNotification k =
 whenActiveNotification : Ref LSPConf LSPConfiguration => (InitializeParams -> IO ()) -> IO ()
 whenActiveNotification = whenNotShutdownNotification . whenInitializedNotification
 
-{- inclusiveFileBounds : (Nat -> Nat -> Nat) -> GlobalContext -> String -> SnocList (Name, Index, Entry) -> Maybe Nat
-inclusiveFileBounds f omega file [<] = Nothing
-inclusiveFileBounds f omega file (xs :< (x, idx, _)) =
-  case fromMaybe False $ isDefinedInFile omega x file of
-    True => (f idx <$> inclusiveFileBounds f omega file xs) <|> Just idx
-    False => inclusiveFileBounds f omega file xs -}
-
-{- findUserMeta : OrdTree ((Location.FileName, Util.Location.Range), NameIdent) (ByFst @{Inst}) -> (Location.FileName, Util.Location.Range) -> Maybe NameIdent
-findUserMeta tree clicked =
-  findFstPostOrder (\(hole, _) => isClickedWithinHole clicked hole) tree
-    <&>
-  snd
+findUserMeta : OrdTree (String, List (Data.Location.Range, OmegaName)) ByFst
+            -> String
+            -> Data.Location.Range
+            -> Maybe OmegaName
+findUserMeta tree file r = do
+  list <- findFile (List.inorder tree) file
+  map snd (find (\(x, _) => isWithin r x) list)
  where
-  isClickedWithinHole : (clicked : (Location.FileName, Util.Location.Range)) -> (hole : (Location.FileName, Util.Location.Range)) -> Bool
-  isClickedWithinHole (file0, r0) (file1, r1) =
-    file0 == file1 && isWithin r0 r1 -}
+  findFile : List (String, List (Data.Location.Range, OmegaName)) -> String -> Maybe (List (Data.Location.Range, OmegaName))
+  findFile list n = map snd (find (\(x, _) => x == n) list)
 
 export
 handleRequest :
@@ -215,41 +215,34 @@ handleRequest Shutdown params = do
   logI Server "Server ready to be shutdown"
   pure $ pure $ (the (Maybe Null) Nothing)
 
-{- handleRequest TextDocumentHover params = whenActiveRequest $ \conf => do
+handleRequest TextDocumentHover params = whenActiveRequest $ \conf => do
   logI Channel "Received hover request for \{show params.textDocument.uri}"
   withURI conf params.textDocument.uri Nothing (pure $ pure $ make $ MkNull) $ do
     let p = cast {to = Point} params.position
-    st <- gets LSPConf hott
-    let (Just stem, Just "hott") = (fileStem params.textDocument.uri.path, extension params.textDocument.uri.path)
-      | _ => pure $ Left (invalidParams "Not a .hott file")
-    let loc : (Location.FileName, Util.Location.Range) = (params.textDocument.uri.path, MkRange p p)
-    let Just (name, isNameless) =
-          (findUserMeta st.userHoleLocations loc <&> (, False)) <|> (findUserMeta st.userNamelessHoleLocations loc <&> (, True))
+    namedHoles <- gets LSPConf namedHoles
+    sig <- gets LSPConf sigma
+    omega <- gets LSPConf omega
+    let file = params.textDocument.uri.path
+    let r = MkRange p p
+    let Just n = findUserMeta namedHoles file r
       | _ => do
-        let markupContent = MkMarkupContent PlainText "Couldn't extract a term at that range"
+        let markupContent = MkMarkupContent PlainText "Can't find hole at that location"
         let hover = MkHover (make markupContent) Nothing
         pure $ pure (make hover)
-    let Just signature = lookup name st.sigs
+    let Just entry = lookup n omega
       | _ => do
-        let markupContent = MkMarkupContent PlainText "Couldn't find that meta in the signature list"
+        let markupContent = MkMarkupContent PlainText "[Critical] Couldn't find the meta in Ω"
         let hover = MkHover (make markupContent) Nothing
         pure $ pure (make hover)
-    (_, Right (_, signature)) <- coreLift $ normaliseSignatureNoLetUnfold st.sigs st.constraints signature
-                     (const True, st.unifySt)
-      | _ => do
-        let markupContent = MkMarkupContent PlainText "Encountered problem while normalising the signature"
-        let hover = MkHover (make markupContent) Nothing
-        pure $ pure (make hover)
-    (_, Right (_, doc)) <- coreLift $ prettySignature st.sigs st.constraints signature
-                     (const True, st.unifySt)
-      | _ => do
-        let markupContent = MkMarkupContent PlainText "Encountered problem while normalising the signature"
+    Right doc <- eval (prettyOmegaEntry sig omega n entry) ()
+      | Left err => do
+        let markupContent = MkMarkupContent PlainText "Encountered problem while printing the meta: \{err}"
         let hover = MkHover (make markupContent) Nothing
         pure $ pure (make hover)
     let line = renderDocNoAnn doc
     let markupContent = MkMarkupContent PlainText line
     let hover = MkHover (make markupContent) Nothing
-    pure $ pure (make hover) -}
+    pure $ pure (make hover)
 
 handleRequest TextDocumentDefinition params = whenActiveRequest $ \conf => do
   logW Channel $ "Received an unsupported definition request"

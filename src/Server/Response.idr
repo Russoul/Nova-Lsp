@@ -7,6 +7,9 @@ import Data.OneOf
 import Data.String
 import Data.Ref
 import Data.List1
+import Data.Location
+
+import Text.PrettyPrint.Prettyprinter
 
 import Language.JSON
 import Language.LSP.Message
@@ -18,8 +21,8 @@ import Server.Log
 import Server.Utils
 import System.File
 
-import Data.Location
 import Nova.Core.Monad
+import Nova.Core.Pretty
 import Nova.Surface.SemanticToken
 
 ||| Header for messages on-the-wire.
@@ -127,10 +130,10 @@ sendDiagnostics : Ref LSPConf LSPConfiguration
                => (caps : Maybe PublishDiagnosticsClientCapabilities)
                -> (uri : DocumentURI)
                -> (version : Maybe Int)
-               -> (errs : List String)
+               -> (errs : List (Maybe Data.Location.Range, Doc Ann))
                -> IO ()
 sendDiagnostics caps uri version errs = Prelude.do
-  diagnostics <- traverse (\d => toDiagnostics caps uri d <&> forget) errs
-  let params = MkPublishDiagnosticsParams uri version (join diagnostics)
+  diagnostics <- traverse (\d => toDiagnostic caps uri d) errs
+  let params = MkPublishDiagnosticsParams uri version diagnostics
   logI Diagnostic "Sending diagnostic message for \{show uri}"
   sendNotificationMessage TextDocumentPublishDiagnostics params

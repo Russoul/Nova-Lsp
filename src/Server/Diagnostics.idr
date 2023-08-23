@@ -14,20 +14,21 @@ import Server.Utils
 import System.File
 import System.Path
 
+import Nova.Core.Pretty
 import Nova.Surface.SemanticToken
 
 import Text.PrettyPrint.Prettyprinter.Render.Terminal
 import Text.PrettyPrint.Prettyprinter
 
-buildDiagnostic : Loc -> String -> Maybe (List DiagnosticRelatedInformation) -> Diagnostic
-buildDiagnostic loc error related =
+buildDiagnostic : Maybe Data.Location.Range -> Doc Ann -> Maybe (List DiagnosticRelatedInformation) -> Diagnostic
+buildDiagnostic r error related =
   MkDiagnostic
-    { range = fromMaybe dummyRange (map cast (snd loc))
+    { range = fromMaybe dummyRange (map cast r)
     , severity = Just Error
     , code = Nothing
     , codeDescription = Nothing
     , source = Just "hott"
-    , message = error
+    , message = renderDocNoAnn error
     , tags = Nothing
     , relatedInformation = related
     , data_ = Nothing
@@ -41,15 +42,7 @@ buildDiagnostic loc error related =
 export
 toDiagnostic : (caps : Maybe PublishDiagnosticsClientCapabilities)
             -> (uri : URI)
-            -> (error : String)
+            -> (error : (Maybe Data.Location.Range, Doc Ann))
             -> IO Diagnostic
-toDiagnostic caps uri s = do
-  pure $ buildDiagnostic EmptyLoc
-    s Nothing
-
-export
-toDiagnostics : (caps : Maybe PublishDiagnosticsClientCapabilities)
-             -> (uri : URI)
-             -> (error : String)
-             -> IO (List1 Diagnostic)
-toDiagnostics caps uri s = pure $ !(toDiagnostic caps uri s) ::: []
+toDiagnostic caps uri (r, doc) = do
+  pure $ buildDiagnostic r doc Nothing

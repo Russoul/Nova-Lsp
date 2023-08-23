@@ -52,3 +52,7 @@ Cast Data.Location.Point Language.LSP.Message.Location.Position where
 public export
 Cast Data.Location.Range Language.LSP.Message.Location.Range where
   cast (MkRange start end) = MkRange (cast start) (cast end)
+
+public export
+Cast Position Point where
+  cast (MkPosition x y) = (x, y)
