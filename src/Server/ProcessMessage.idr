@@ -31,6 +31,7 @@ import System.Path
 import System.File.ReadWrite
 import Data.List1
 
+import Nova.Core.Context
 import Nova.Core.Language
 import Nova.Core.Evaluation
 import Nova.Core.Monad
@@ -292,7 +293,7 @@ handleRequest TextDocumentSemanticTokensFull params = whenActiveRequest $ \conf 
           -- We don't want to resend the tokens because they've been
           -- invalidated by an error in the elaboration process.
           pure $ pure $ make MkNull
-        False => do
+        False => Prelude.do
           encodedToks <- getSemanticTokens source toks
           pure $ pure $ (make $ encodedToks)
 {- handleRequest WorkspaceExecuteCommand
