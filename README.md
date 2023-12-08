@@ -1,5 +1,5 @@
 # Nova-lsp
-Language Server for Nova.
+Language Server for [Nova](https://github.com/Russoul/Nova).
 
 ## Installation
 
