@@ -1,3 +1,5 @@
+include config.mk
+
 # Executable we're building
 NAME = nova-lsp
 TARGETDIR = ${CURDIR}/build/exec

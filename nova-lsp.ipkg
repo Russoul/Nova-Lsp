@@ -3,7 +3,7 @@ version = 0.1.0
 
 opts = "-Wno-shadowing"
 
-depends = contrib, nova, lsp-lib
+depends = contrib, nova-api, lsp-lib
 
 sourcedir = "src"
 
