@@ -88,12 +88,12 @@ loadURI conf uri version = Prelude.do
        pure $ Left msg
 
   let modules = takeUpTo (/= openModule) modules
-  Right (sig, omega, ops, nextOmegaIdx, namedHoles, toks) <- checkModules [<] empty [<] 0 empty empty workspace modules
+  Right (ops, sig, omega, nextOmegaIdx, namedHoles, toks) <- checkModules [<] [<] empty 0 empty empty workspace modules
     | Left (filename, r, msg) => do
        logE Server (renderDocNoAnn msg)
-       case filename == fpath of
+       case filename == Just fpath of
          True => sendDiagnostics caps uri version [(r, msg)]
-         False => sendDiagnostics caps uri version [(Nothing, pretty "In file \{filename}" <+> hardline <+> msg)]
+         False => sendDiagnostics caps uri version [(Nothing, pretty "In file \{show filename}" <+> hardline <+> msg)]
        pure $ Left (renderDocNoAnn msg)
   logI Channel "File type checked successfully"
   update LSPConf {quickfixes := [],
